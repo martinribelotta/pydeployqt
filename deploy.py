@@ -25,6 +25,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--build", help="where to place libraries, optional, files will go to target location by default")
 parser.add_argument("--objdump", help="objdump executable (/home/user/mxe/usr/bin/i686-w64-mingw32.shared-objdump)")
 parser.add_argument("--libs", help="where to search for libraries (optional) infers from objdump")
+parser.add_argument("--extradll", help="Extra list of dll")
 parser.add_argument("target")
 
 args = parser.parse_args()
@@ -44,6 +45,7 @@ libs = args.libs
 if not args.libs:
     libs = objdump_path.replace('/bin', '').replace('-objdump','')
 
+extras = args.extradll
     
 # build_path = "/home/user/ClionProjects/project/build/"
 # libs = "/home/user/mxe/usr/i686-w64-mingw32.shared"
@@ -56,7 +58,9 @@ def run_check():
 
 
 def find_dll(dll):
-    out = subprocess.getoutput("find " + libs + " | grep '" + dll+"$'")
+    out = ""
+    for l in libs.split(':'):
+        out += subprocess.getoutput("find " + l + " | grep '" + dll+"$'")
     return out.strip('\n')
 
 
@@ -98,7 +102,7 @@ def library_install_objdump(path, level):
     command = objdump_path + " -p " + lib + " | grep -o ': .*\.dll$'"
     res = subprocess.getstatusoutput(command)
     if (res[0] > 0):
-        print("Error: objdump failed with " + lib)
+        print("Error: objdump failed with {}: {}".format(lib, res[1]))
     else:
         dlls = subprocess.getoutput(command).split("\n")
         for line in dlls:
@@ -117,6 +121,16 @@ def main():
 
     #library_install_exe(target)
     library_install_objdump(target, 0)
+    for e in extras:
+        lib = find_dll(e)
+        if lib == "":  # not found
+            skip_libs.append(path)
+            print("Not found: " + path)
+            return
+        print(lib)
+        e, o = subprocess.getoutput("cp " + lib + " " + build_path)
+        if e != 0:
+            print("Exit code of cp is {}: {}", e, o)
 
     pass
 
