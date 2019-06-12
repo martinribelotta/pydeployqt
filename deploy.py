@@ -26,6 +26,7 @@ parser.add_argument("--build", help="where to place libraries, optional, files w
 parser.add_argument("--objdump", help="objdump executable (/home/user/mxe/usr/bin/i686-w64-mingw32.shared-objdump)")
 parser.add_argument("--libs", help="where to search for libraries (optional) infers from objdump")
 parser.add_argument("--extradll", help="Extra list of dll")
+parser.add_argument("--qmake", help="qmake to use")
 parser.add_argument("target")
 
 args = parser.parse_args()
@@ -35,6 +36,9 @@ if len(sys.argv) == 1 or not (args.libs or args.objdump):
 
 target = os.path.expanduser(args.target)
 objdump_path = os.path.expanduser(args.objdump)
+qmake_path = os.path.expanduser(args.qmake)
+if not qmake_path:
+    qmake_path = "qmake"
 
 if not args.build:
     build_path = os.path.expanduser(os.path.dirname(args.target)) + "/"
@@ -45,7 +49,9 @@ libs = args.libs
 if not args.libs:
     libs = objdump_path.replace('/bin', '').replace('-objdump','')
 
-extras = args.extradll
+extras = args.extradll.split(':')
+if not extras:
+    extras = []
     
 # build_path = "/home/user/ClionProjects/project/build/"
 # libs = "/home/user/mxe/usr/i686-w64-mingw32.shared"
@@ -113,7 +119,16 @@ def library_install_objdump(path, level):
 
 skip_libs = list()
 done = list()
-
+export_plugins = [
+    "bearer",
+    "generic",
+    "iconengines",
+    "imageformats",
+    "platforms",
+    "platformthemes",
+    "printsupport",
+    "styles"
+]
 
 def main():
 
@@ -124,14 +139,20 @@ def main():
     for e in extras:
         lib = find_dll(e)
         if lib == "":  # not found
-            skip_libs.append(path)
-            print("Not found: " + path)
+            print("Not found: " + e)
             return
         print(lib)
-        e, o = subprocess.getoutput("cp " + lib + " " + build_path)
+        e, o = subprocess.getstatusoutput("cp " + lib + " " + build_path)
         if e != 0:
             print("Exit code of cp is {}: {}", e, o)
-
+    # /usr/lib/mxe/usr/i686-w64-mingw32.shared/qt5/bin/qmake -query|grep PLUGINS
+    o = subprocess.getoutput("{} -query | grep PLUGINS".format(qmake_path))
+    plugindir = o.split(':')[1]
+    for name in export_plugins:
+        path = os.path.join(plugindir, name)
+        e, o = subprocess.getstatusoutput("cp -rf " + path + " " + build_path)
+        if e != 0:
+            print("Exit code of cp is {}: {}", e, o)
     pass
 
 main()
